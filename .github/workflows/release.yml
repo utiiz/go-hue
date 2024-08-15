@@ -35,35 +35,35 @@ jobs:
         run: |
           git fetch --tags
           echo "latest_tag=$(git describe --tags --abbrev=0 || echo v0.0.0)" >> $GITHUB_OUTPUT
-      #
-      # - name: Bump version and push tag
-      #   id: bump_version
-      #   run: |
-      #     latest_tag=${{ steps.get_latest_tag.outputs.latest_tag }}
-      #     IFS='.' read -ra VERSION <<< "${latest_tag#v}"
-      #     MAJOR=${VERSION[0]}
-      #     MINOR=${VERSION[1]}
-      #     PATCH=${VERSION[2]}
-      #     case "${{ github.event.inputs.version_bump }}" in
-      #       major)
-      #         MAJOR=$((MAJOR+1))
-      #         MINOR=0
-      #         PATCH=0
-      #         ;;
-      #       minor)
-      #         MINOR=$((MINOR+1))
-      #         PATCH=0
-      #         ;;
-      #       patch)
-      #         PATCH=$((PATCH+1))
-      #         ;;
-      #     esac
-      #     new_tag="v$MAJOR.$MINOR.$PATCH"
-      #     echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
-      #     git config user.name github-actions
-      #     git config user.email github-actions@github.com
-      #     git tag $new_tag
-      #     git push origin $new_tag
+
+      - name: Bump version and push tag
+        id: bump_version
+        run: |
+          latest_tag=${{ steps.get_latest_tag.outputs.latest_tag }}
+          IFS='.' read -ra VERSION <<< "${latest_tag#v}"
+          MAJOR=${VERSION[0]}
+          MINOR=${VERSION[1]}
+          PATCH=${VERSION[2]}
+          case "${{ github.event.inputs.version_bump }}" in
+            major)
+              MAJOR=$((MAJOR+1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR+1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH+1))
+              ;;
+          esac
+          new_tag="v$MAJOR.$MINOR.$PATCH"
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag $new_tag
+          git push origin $new_tag
       #
       # - name: Generate release notes
       #   id: generate_release_notes
