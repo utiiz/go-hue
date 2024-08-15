@@ -70,7 +70,7 @@ jobs:
         run: |
           echo "Release Notes for ${{ steps.bump_version.outputs.new_tag }}" > RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
-          git log $(git describe --tags --abbrev=0 ${{ steps.get_latest_tag.outputs.latest_tag }}^)..HEAD --pretty=format:"- %s" >> RELEASE_NOTES.md
+          git log $(git describe --tags --always --abbrev=0 ${{ steps.get_latest_tag.outputs.latest_tag }}^)..HEAD --pretty=format:"- %s" >> RELEASE_NOTES.md
 
       - name: Create Release
         id: create_release
