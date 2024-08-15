@@ -1,0 +1,85 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Type of version bump (patch, minor, major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.20.x
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Get latest tag
+        id: get_latest_tag
+        run: |
+          git fetch --tags
+          echo "latest_tag=$(git describe --tags --abbrev=0 || echo v0.0.0)" >> $GITHUB_OUTPUT
+
+      - name: Bump version and push tag
+        id: bump_version
+        run: |
+          latest_tag=${{ steps.get_latest_tag.outputs.latest_tag }}
+          IFS='.' read -ra VERSION <<< "${latest_tag#v}"
+          MAJOR=${VERSION[0]}
+          MINOR=${VERSION[1]}
+          PATCH=${VERSION[2]}
+          case "${{ github.event.inputs.version_bump }}" in
+            major)
+              MAJOR=$((MAJOR+1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR+1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH+1))
+              ;;
+          esac
+          new_tag="v$MAJOR.$MINOR.$PATCH"
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag $new_tag
+          git push origin $new_tag
+
+      - name: Generate release notes
+        id: generate_release_notes
+        run: |
+          echo "Release Notes for ${{ steps.bump_version.outputs.new_tag }}" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          git log $(git describe --tags --abbrev=0 ${{ steps.get_latest_tag.outputs.latest_tag }}^)..HEAD --pretty=format:"- %s" >> RELEASE_NOTES.md
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.bump_version.outputs.new_tag }}
+          release_name: Release ${{ steps.bump_version.outputs.new_tag }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
