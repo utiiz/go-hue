@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	client "github.com/utiiz/go-hue/pkg/http_client"
 	"github.com/utiiz/go-hue/pkg/user"
 )
 
@@ -16,18 +15,10 @@ var (
 	discoverURL = "https://discovery.meethue.com"
 )
 
-type IBridge interface {
-	String() string
-	URL() string
-	GetUser() (*user.User, error)
-	SetUser(user *user.User)
-	GetLights(id string)
-}
-
 type Bridge struct {
 	Host   string `json:"internalipaddress"`
 	User   *user.User
-	Client client.HTTPClient
+	Client *http.Client
 }
 
 func NewBridge(host string) *Bridge {
@@ -85,14 +76,7 @@ func (b *Bridge) GetUser() (*user.User, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", b.URL(), bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := b.Client.Do(req)
+	resp, err := b.Client.Post(b.URL(), "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, err
 	}

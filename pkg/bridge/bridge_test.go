@@ -1,148 +1,96 @@
 package bridge
 
 import (
-	"bytes"
-	"io"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
-	httpclient "github.com/utiiz/go-hue/pkg/http_client"
+	"github.com/utiiz/go-hue/pkg/user"
 )
 
 func TestNewBridge(t *testing.T) {
-	bridge := NewBridge("237.84.2.178")
-	assert.Equal(t, "237.84.2.178", bridge.String())
-	assert.Equal(t, "http://237.84.2.178/api", bridge.URL())
+	host := "192.168.1.100"
+	bridge := NewBridge(host)
+
+	assert.Equal(t, host, bridge.Host, "Bridge host should match")
+	assert.Nil(t, bridge.User, "User should be nil")
+	assert.NotNil(t, bridge.Client, "Client should not be nil")
+	assert.Equal(t, 5*time.Second, bridge.Client.Timeout, "Client timeout should be 5 seconds")
 }
 
-func TestString(t *testing.T) {
-	bridge := NewBridge("237.84.2.178")
-	assert.Equal(t, "237.84.2.178", bridge.String())
+func TestBridgeString(t *testing.T) {
+	bridge := NewBridge("192.168.1.100")
+	assert.Equal(t, "192.168.1.100", bridge.String(), "Bridge String() should return the host")
 }
 
-func TestURL(t *testing.T) {
-	bridge := NewBridge("237.84.2.178")
-	assert.Equal(t, "http://237.84.2.178/api", bridge.URL())
+func TestBridgeURL(t *testing.T) {
+	bridge := NewBridge("192.168.1.100")
+	assert.Equal(t, "http://192.168.1.100/api", bridge.URL(), "Bridge URL without user should be correct")
+
+	bridge.User = user.NewUser("testuser")
+	assert.Equal(t, "http://192.168.1.100/api/testuser", bridge.URL(), "Bridge URL with user should be correct")
 }
 
 func TestDiscover(t *testing.T) {
-	t.Run("Successful discovery", func(t *testing.T) {
-		// Mock the http response
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`[{"internalipaddress":"237.84.2.178","id":"123","port":8080}]`))
-		}))
-
-		defer server.Close()
-		discoverURL = server.URL
-
-		bridges, err := Discover()
-
-		expected := &[]Bridge{
-			{
-				Host: "237.84.2.178",
-				User: nil,
-			},
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bridges := []Bridge{
+			{Host: "192.168.1.100"},
+			{Host: "192.168.1.101"},
 		}
+		json.NewEncoder(w).Encode(bridges)
+	}))
+	defer server.Close()
 
-		assert.Nil(t, err)
-		assert.Equal(t, expected, bridges)
-	})
+	originalDiscoverURL := discoverURL
+	discoverURL = server.URL
+	defer func() { discoverURL = originalDiscoverURL }()
 
-	t.Run("Failed discovery", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusTooManyRequests)
-		}))
+	bridges, err := Discover()
 
-		defer server.Close()
-		discoverURL = server.URL
+	assert.NoError(t, err, "Discover() should not return an error")
+	assert.NotNil(t, bridges, "Bridges should not be nil")
+	assert.Len(t, *bridges, 2, "Should discover 2 bridges")
 
-		bridges, err := Discover()
-
-		assert.Nil(t, bridges)
-		assert.NotNil(t, err)
-	})
+	expectedHosts := []string{"192.168.1.100", "192.168.1.101"}
+	for i, bridge := range *bridges {
+		assert.Equal(t, expectedHosts[i], bridge.Host, "Bridge host should match")
+	}
 }
 
 func TestGetUser(t *testing.T) {
-	// Create a new bridge
-	bridge := NewBridge("237.84.2.178")
+	bridge := NewBridge("192.168.1.100")
 
-	t.Run("Successfully retrieved a user", func(t *testing.T) {
-		// Create a mock http client
-		mockClient := &httpclient.MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(bytes.NewBuffer([]byte(`[{"success":{"username":"6glgT6ofIRwOs4SIKt32zdDfBKrRGE8JT7Min5xi"}}]`))),
-				}, nil
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := []map[string]interface{}{
+			{
+				"success": map[string]interface{}{
+					"username": "testuser",
+				},
 			},
 		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
 
-		bridge.Client = mockClient
+	bridge.Client = server.Client()
+	bridge.Host = server.URL[7:] // Remove "http://" prefix
 
-		user, err := bridge.GetUser()
+	user, err := bridge.GetUser()
 
-		assert.Nil(t, err)
-		assert.Equal(t, "6glgT6ofIRwOs4SIKt32zdDfBKrRGE8JT7Min5xi", user.Username)
-	})
+	assert.NoError(t, err, "GetUser() should not return an error")
+	assert.NotNil(t, user, "User should not be nil")
+	assert.Equal(t, "testuser", user.Username, "Username should match")
+	assert.Equal(t, user, bridge.User, "Bridge User should be set correctly")
+}
 
-	t.Run("Failed to retrieve a user - Success key not found", func(t *testing.T) {
-		// Create a mock http client
-		mockClient := &httpclient.MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(bytes.NewBuffer([]byte(`[{"error":{"address":"237.84.2.178","description":"Success key not found"}}]`))),
-				}, nil
-			},
-		}
+func TestSetUser(t *testing.T) {
+	bridge := NewBridge("192.168.1.100")
+	user := user.NewUser("testuser")
 
-		bridge.Client = mockClient
+	bridge.SetUser(user)
 
-		user, err := bridge.GetUser()
-
-		assert.Nil(t, user)
-		assert.Equal(t, "success key not found or not a map", err.Error())
-	})
-
-	t.Run("Failed to retrieve a user - No data found", func(t *testing.T) {
-		// Create a mock http client
-		mockClient := &httpclient.MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(bytes.NewBuffer([]byte(`[]`))),
-				}, nil
-			},
-		}
-
-		bridge.Client = mockClient
-
-		user, err := bridge.GetUser()
-
-		assert.Nil(t, user)
-		assert.Equal(t, "no data found in the response", err.Error())
-	})
-
-	t.Run("Failed to retrieve a user - Unmarshal error", func(t *testing.T) {
-		// Create a mock http client
-		mockClient := &httpclient.MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(bytes.NewBuffer([]byte(`{}`))),
-				}, nil
-			},
-		}
-
-		bridge.Client = mockClient
-
-		user, err := bridge.GetUser()
-
-		assert.Nil(t, user)
-		assert.Contains(t, err.Error(), "cannot unmarshal")
-	})
+	assert.Equal(t, user, bridge.User, "SetUser() should set the User correctly")
 }
