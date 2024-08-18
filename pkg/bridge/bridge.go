@@ -37,6 +37,7 @@ func (b *Bridge) String() string {
 
 func (b *Bridge) UnmarshalJSON(data []byte) error {
 	var rawMap map[string]json.RawMessage
+	fmt.Printf("UnmarshalJSON: %s\n", data)
 	err := json.Unmarshal(data, &rawMap)
 	if err != nil {
 		return err
@@ -44,7 +45,7 @@ func (b *Bridge) UnmarshalJSON(data []byte) error {
 
 	var ip string
 
-	if ipRaw, ok := rawMap["ip"]; ok {
+	if ipRaw, ok := rawMap["internalipaddress"]; ok {
 		err = json.Unmarshal(ipRaw, &ip)
 		if err != nil {
 			return err

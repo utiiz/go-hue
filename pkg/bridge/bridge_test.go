@@ -12,10 +12,10 @@ import (
 )
 
 func TestNewBridge(t *testing.T) {
-	host := "192.168.1.100"
-	bridge := NewBridge(host)
+	ip := "192.168.1.100"
+	bridge := NewBridge(ip)
 
-	assert.Equal(t, host, bridge.Host, "Bridge host should match")
+	assert.Equal(t, ip, bridge.IP, "Bridge ip should match")
 	assert.Nil(t, bridge.User, "User should be nil")
 	assert.NotNil(t, bridge.Client, "Client should not be nil")
 	assert.Equal(t, 5*time.Second, bridge.Client.Timeout, "Client timeout should be 5 seconds")
@@ -23,7 +23,7 @@ func TestNewBridge(t *testing.T) {
 
 func TestBridgeString(t *testing.T) {
 	bridge := NewBridge("192.168.1.100")
-	assert.Equal(t, "192.168.1.100", bridge.String(), "Bridge String() should return the host")
+	assert.Equal(t, "192.168.1.100", bridge.String(), "Bridge String() should return the ip")
 }
 
 func TestBridgeURL(t *testing.T) {
@@ -37,8 +37,8 @@ func TestBridgeURL(t *testing.T) {
 func TestDiscover(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bridges := []Bridge{
-			{Host: "192.168.1.100"},
-			{Host: "192.168.1.101"},
+			{IP: "192.168.1.100"},
+			{IP: "192.168.1.101"},
 		}
 		json.NewEncoder(w).Encode(bridges)
 	}))
@@ -54,9 +54,9 @@ func TestDiscover(t *testing.T) {
 	assert.NotNil(t, bridges, "Bridges should not be nil")
 	assert.Len(t, *bridges, 2, "Should discover 2 bridges")
 
-	expectedHosts := []string{"192.168.1.100", "192.168.1.101"}
+	expectedips := []string{"192.168.1.100", "192.168.1.101"}
 	for i, bridge := range *bridges {
-		assert.Equal(t, expectedHosts[i], bridge.Host, "Bridge host should match")
+		assert.Equal(t, expectedips[i], bridge.IP, "Bridge ip should match")
 	}
 }
 
@@ -76,7 +76,7 @@ func TestGetUser(t *testing.T) {
 	defer server.Close()
 
 	bridge.Client = server.Client()
-	bridge.Host = server.URL[7:] // Remove "http://" prefix
+	bridge.IP = server.URL[7:] // Remove "http://" prefix
 
 	user, err := bridge.GetUser()
 
