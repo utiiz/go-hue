@@ -73,23 +73,27 @@ func (b *Bridge) GetUser() (*user.User, error) {
 	}
 	jsonData, err := json.Marshal(inputData)
 	if err != nil {
+		fmt.Printf("Error marshalling input data: %v\n", err)
 		return nil, err
 	}
 
 	resp, err := b.Client.Post(b.URL(), "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
+		fmt.Printf("Error reading response body: %v\n", err)
 		return nil, err
 	}
 
 	var outputData []map[string]interface{}
 	err = json.Unmarshal(bodyBytes, &outputData)
 	if err != nil {
+		fmt.Printf("Error unmarshalling response: %v\n", err)
 		return nil, err
 	}
 
