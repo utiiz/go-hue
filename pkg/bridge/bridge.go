@@ -16,14 +16,14 @@ var (
 )
 
 type Bridge struct {
-	Host   string `json:"internalipaddress"`
+	IP     string `json:"internalipaddress"`
 	User   *user.User
 	Client *http.Client
 }
 
-func NewBridge(host string) *Bridge {
+func NewBridge(ip string) *Bridge {
 	return &Bridge{
-		Host: host,
+		IP:   ip,
 		User: nil,
 		Client: &http.Client{
 			Timeout: 5 * time.Second,
@@ -32,14 +32,35 @@ func NewBridge(host string) *Bridge {
 }
 
 func (b *Bridge) String() string {
-	return fmt.Sprintf("%s", b.Host)
+	return fmt.Sprintf("%s", b.IP)
+}
+
+func (b *Bridge) UnmarshalJSON(data []byte) error {
+	var rawMap map[string]json.RawMessage
+	err := json.Unmarshal(data, &rawMap)
+	if err != nil {
+		return err
+	}
+
+	var ip string
+
+	if ipRaw, ok := rawMap["ip"]; ok {
+		err = json.Unmarshal(ipRaw, &ip)
+		if err != nil {
+			return err
+		}
+	}
+
+	*b = *NewBridge(ip)
+
+	return nil
 }
 
 func (b *Bridge) URL() string {
 	if b.User == nil {
-		return fmt.Sprintf("http://%s/api", b.Host)
+		return fmt.Sprintf("http://%s/api", b.IP)
 	}
-	return fmt.Sprintf("http://%s/api/%s", b.Host, b.User.Username)
+	return fmt.Sprintf("http://%s/api/%s", b.IP, b.User.Username)
 }
 
 func Discover() (*[]Bridge, error) {
@@ -73,27 +94,23 @@ func (b *Bridge) GetUser() (*user.User, error) {
 	}
 	jsonData, err := json.Marshal(inputData)
 	if err != nil {
-		fmt.Printf("Error marshalling input data: %v\n", err)
 		return nil, err
 	}
 
 	resp, err := b.Client.Post(b.URL(), "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		fmt.Printf("Error making request: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Error reading response body: %v\n", err)
 		return nil, err
 	}
 
 	var outputData []map[string]interface{}
 	err = json.Unmarshal(bodyBytes, &outputData)
 	if err != nil {
-		fmt.Printf("Error unmarshalling response: %v\n", err)
 		return nil, err
 	}
 
