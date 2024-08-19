@@ -94,3 +94,44 @@ func TestSetUser(t *testing.T) {
 
 	assert.Equal(t, user, bridge.User, "SetUser() should set the User correctly")
 }
+
+func TestGetLights(t *testing.T) {
+	bridge := NewBridge("192.168.1.100")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := []map[string]interface{}{
+			{
+				"id": "1",
+				"state": map[string]interface{}{
+					"on":  true,
+					"hue": 36000,
+					"bri": 254,
+					"sat": 254,
+				},
+			},
+			{
+				"id": "2",
+				"state": map[string]interface{}{
+					"on":  false,
+					"hue": 0,
+					"bri": 254,
+					"sat": 254,
+				},
+			},
+		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	bridge.Client = server.Client()
+	bridge.IP = server.URL[7:] // Remove "http://" prefix
+
+	lights, err := bridge.GetLights()
+
+	assert.NoError(t, err, "GetLights() should not return an error")
+	assert.NotNil(t, lights, "Lights should not be nil")
+	assert.Len(t, *lights, 2, "Should get 2 lights")
+	assert.Equal(t, "1", (*lights)[0].ID, "Light ID should match")
+	assert.Equal(t, true, (*lights)[0].State.On, "Light State should match")
+	assert.Equal(t, false, (*lights)[1].State.On, "Light State should match")
+}

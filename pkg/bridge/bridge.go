@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/utiiz/go-hue/internal/types"
+	"github.com/utiiz/go-hue/pkg/light"
 	"github.com/utiiz/go-hue/pkg/user"
 )
 
@@ -20,6 +22,9 @@ type Bridge struct {
 	User   *user.User
 	Client *http.Client
 }
+
+// Ensure Bridge implements Bridge interface
+var _ types.Bridge = (*Bridge)(nil)
 
 func NewBridge(ip string) *Bridge {
 	return &Bridge{
@@ -43,7 +48,6 @@ func (b *Bridge) UnmarshalJSON(data []byte) error {
 	}
 
 	var ip string
-
 	if ipRaw, ok := rawMap["internalipaddress"]; ok {
 		err = json.Unmarshal(ipRaw, &ip)
 		if err != nil {
@@ -61,6 +65,10 @@ func (b *Bridge) URL() string {
 		return fmt.Sprintf("http://%s/api", b.IP)
 	}
 	return fmt.Sprintf("http://%s/api/%s", b.IP, b.User.Username)
+}
+
+func (b *Bridge) GetClient() *http.Client {
+	return b.Client
 }
 
 func Discover() (*[]Bridge, error) {
@@ -132,8 +140,84 @@ func (b *Bridge) SetUser(user *user.User) {
 	b.User = user
 }
 
-func (b *Bridge) GetLights(id string) {
+func (b *Bridge) GetLights() (*[]light.Light, error) {
 	// URL	https://<bridge ip address>/api/<username>/lights
 	// Body	{}
 	// Method	GET
+
+	resp, err := b.Client.Get(b.URL())
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var lightsMap []light.Light
+	err = json.Unmarshal(bodyBytes, &lightsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	var lights []light.Light
+	for _, light := range lightsMap {
+		light.Bridge = b
+		lights = append(lights, light)
+	}
+
+	return &lights, nil
+}
+
+func (b *Bridge) SetLightOn(id string) error {
+	// URL	https://<bridge ip address>/api/<username>/lights/<light id>/state
+	// Body	{"on":true}
+	// Method	PUT
+
+	url := fmt.Sprintf("%s/lights/%s/state", b.URL(), id)
+
+	inputData := map[string]any{
+		"on": true,
+	}
+	jsonData, err := json.Marshal(inputData)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := b.Client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var outputData []map[string]interface{}
+	err = json.Unmarshal(bodyBytes, &outputData)
+	if err != nil {
+		return err
+	}
+
+	if len(outputData) > 0 {
+		if _, ok := outputData[0]["success"].(map[string]interface{}); ok {
+			return nil
+		} else {
+			return fmt.Errorf("success key not found or not a map")
+		}
+	} else {
+		return fmt.Errorf("no data found in the response")
+	}
 }
