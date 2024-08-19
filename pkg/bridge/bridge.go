@@ -37,7 +37,6 @@ func (b *Bridge) String() string {
 
 func (b *Bridge) UnmarshalJSON(data []byte) error {
 	var rawMap map[string]json.RawMessage
-	fmt.Printf("UnmarshalJSON: %s\n", data)
 	err := json.Unmarshal(data, &rawMap)
 	if err != nil {
 		return err
