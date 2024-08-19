@@ -100,22 +100,20 @@ func TestGetLights(t *testing.T) {
 	bridge := NewBridge("192.168.1.100")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := []map[string]interface{}{
-			{
-				"id": "1",
+		response := map[string]interface{}{
+			"1": map[string]interface{}{
 				"state": map[string]interface{}{
 					"on":  true,
-					"hue": 36000,
 					"bri": 254,
-					"sat": 254,
+					"hue": 41123,
+					"sat": 74,
 				},
 			},
-			{
-				"id": "2",
+			"3": map[string]interface{}{
 				"state": map[string]interface{}{
 					"on":  false,
-					"hue": 0,
 					"bri": 254,
+					"hue": 46920,
 					"sat": 254,
 				},
 			},
@@ -124,6 +122,9 @@ func TestGetLights(t *testing.T) {
 	}))
 	defer server.Close()
 
+	user := user.NewUser("testuser")
+
+	bridge.SetUser(user)
 	bridge.Client = server.Client()
 	bridge.IP = server.URL[7:] // Remove "http://" prefix
 

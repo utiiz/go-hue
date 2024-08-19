@@ -163,14 +163,15 @@ func (b *Bridge) GetLights() (*[]light.Light, error) {
 		return nil, err
 	}
 
-	var lightsMap []light.Light
+	var lightsMap map[string]light.Light
 	err = json.Unmarshal(bodyBytes, &lightsMap)
 	if err != nil {
 		return nil, err
 	}
 
-	var lights []light.Light
-	for _, light := range lightsMap {
+	lights := make([]light.Light, 0, len(lightsMap))
+	for id, light := range lightsMap {
+		light.ID = id
 		light.Bridge = b
 		lights = append(lights, light)
 	}

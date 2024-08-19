@@ -1,6 +1,8 @@
 package light
 
 import (
+	"encoding/json"
+
 	"github.com/utiiz/go-hue/internal/types"
 )
 
@@ -27,6 +29,26 @@ func NewLight(id string, state State, bridge types.Bridge) *Light {
 
 func (l *Light) String() string {
 	return l.ID
+}
+
+func (l *Light) UnmarshalJSON(data []byte) error {
+	var rawMap map[string]json.RawMessage
+	err := json.Unmarshal(data, &rawMap)
+	if err != nil {
+		return err
+	}
+
+	var state State
+	if stateRaw, ok := rawMap["state"]; ok {
+		err = json.Unmarshal(stateRaw, &state)
+		if err != nil {
+			return err
+		}
+	}
+
+	l.State = state
+
+	return nil
 }
 
 func (l *Light) On() error {
