@@ -23,9 +23,6 @@ type Bridge struct {
 	Client *http.Client
 }
 
-// Ensure Bridge implements Bridge interface
-var _ types.Bridge = (*Bridge)(nil)
-
 func NewBridge(ip string) *Bridge {
 	return &Bridge{
 		IP:   ip,
@@ -92,6 +89,10 @@ func Discover() (*[]Bridge, error) {
 	return &bridges, nil
 }
 
+// ------------------------------------
+// ------         Users          ------
+// ------------------------------------
+
 func (b *Bridge) GetUser() (*user.User, error) {
 	// URL	https://<bridge ip address>/api
 	// Body	{"devicetype":"app_name#instance_name", "generateclientkey":true}
@@ -140,12 +141,18 @@ func (b *Bridge) SetUser(user *user.User) {
 	b.User = user
 }
 
+// ------------------------------------
+// ------        Lights          ------
+// ------------------------------------
+
 func (b *Bridge) GetLights() (*[]light.Light, error) {
 	// URL	https://<bridge ip address>/api/<username>/lights
 	// Body	{}
 	// Method	GET
 
-	resp, err := b.Client.Get(b.URL())
+	url := fmt.Sprintf("%s/lights", b.URL())
+
+	resp, err := b.Client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -221,3 +228,6 @@ func (b *Bridge) SetLightOn(id string) error {
 		return fmt.Errorf("no data found in the response")
 	}
 }
+
+// Ensure Bridge implements Bridge interface
+var _ types.Bridge = (*Bridge)(nil)

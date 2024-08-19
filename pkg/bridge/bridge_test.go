@@ -57,6 +57,7 @@ func TestDiscover(t *testing.T) {
 	expectedips := []string{"192.168.1.100", "192.168.1.101"}
 	for i, bridge := range *bridges {
 		assert.Equal(t, expectedips[i], bridge.IP, "Bridge ip should match")
+		assert.NotNil(t, bridge.Client, "Client should not be nil")
 	}
 }
 
